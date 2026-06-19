@@ -105,39 +105,6 @@ jupyter notebook employee_attrition_prediction.ipynb
 
 ---
 
-## ☁️ Free Global Hosting — Streamlit Cloud
-
-### Step 1 — Push to GitHub
-```bash
-git init
-git add .
-git commit -m "Employee Attrition Prediction ML Dashboard"
-git remote add origin https://github.com/YOUR_USERNAME/employee-attrition-ml.git
-git push -u origin main
-```
-
-### Step 2 — Deploy on Streamlit Cloud
-1. Go to **[share.streamlit.io](https://share.streamlit.io)**
-2. Sign in with **GitHub** (free)
-3. Click **"New app"**
-4. Select repo: `employee-attrition-ml` | Branch: `main` | File: `app.py`
-5. Click **"Deploy!"** → Live in ~2 minutes!
-
-**Your free link:**
-```
-https://YOUR_USERNAME-employee-attrition-ml-app.streamlit.app
-```
-> ✅ Free forever · No credit card · Auto-redeploys when you push changes
-
----
-
-## 🤗 Alternative — Hugging Face Spaces (Also Free)
-
-1. [huggingface.co](https://huggingface.co) → Sign up → New Space → SDK: **Streamlit**
-2. Upload `app.py` + `requirements.txt`
-3. Auto-builds in ~2 minutes
-
----
 
 ## 📊 Dashboard Pages (9 Pages)
 
@@ -153,24 +120,7 @@ https://YOUR_USERNAME-employee-attrition-ml-app.streamlit.app
 | ⚠️ At-Risk Employees | Score all employees, download at-risk CSV for HR team |
 | 🚀 How to Run & Host | Step-by-step + internship submission checklist |
 
----
 
-## 🎓 Internship Submission Checklist
-
-| # | File | Status |
-|---|------|--------|
-| 1 | `app.py` | ✅ Ready |
-| 2 | `employee_attrition_prediction.ipynb` | ✅ Ready |
-| 3 | `requirements.txt` | ✅ Ready |
-| 4 | `README.md` | ✅ Ready |
-| 5 | `Project_Report.pdf` | 📋 Write 3–5 pages |
-| 6 | `Presentation.pptx` | 📊 Make 8–10 slides |
-| 7 | GitHub repo link | 🔗 After pushing |
-| 8 | Live app link | 🌐 After deploying |
-| 9 | Screenshots | 📸 5–6 images |
-| 10 | Demo video | 🎥 2–3 min (optional) |
-
----
 
 ## 🌱 Use Real IBM HR Analytics Data
 
@@ -189,9 +139,9 @@ df = df.drop(columns=['EmployeeCount', 'Over18', 'StandardHours'], errors='ignor
 
 ## 👤 Author
 
-**Your Name**  
+**Girdhar Dhami**  
 Diploma in Information Technology (VI Semester)  
-Government Polytechnic Nainital, Uttarakhand  
+Uttarakhand Government institute of Polytechnic Nainital
 RISE Internship 2026 — Tamizhan Skills  
 📧 Rise@tamizhanskills.com | 🌐 www.tamizhanskills.com
 
