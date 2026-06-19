@@ -10,8 +10,8 @@
 
     :root {
       --bg: #0f172a;
-      --bg2: #1e293b;
-      --bg3: #334155;
+      --bg2: rgba(30, 41, 59, 0.7);
+      --bg3: rgba(51, 65, 85, 0.7);
       --purple: #7c3aed;
       --purple-d: #5b21b6;
       --purple-l: #c4b5fd;
@@ -36,12 +36,20 @@
       font-family: 'Inter', sans-serif;
       background: var(--bg);
       color: var(--text);
-      overflow-x: hidden
-    }
-
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+    
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     /* HERO */
@@ -231,12 +239,15 @@
       padding: 14px 18px;
       text-align: center;
       min-width: 90px;
-      transition: border-color .2s, transform .2s
+      backdrop-filter: blur(12px);
+      transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .pipe-step:hover {
       border-color: var(--purple);
-      transform: translateY(-4px)
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(124, 58, 237, 0.15);
+      background: rgba(30, 41, 59, 0.9);
     }
 
     .pipe-step .ico {
@@ -281,11 +292,14 @@
       padding: 13px 16px;
       font-size: 14px;
       font-weight: 500;
-      transition: border-color .2s
+      backdrop-filter: blur(12px);
+      transition: all .3s ease;
     }
 
     .req-item:hover {
-      border-color: var(--purple)
+      border-color: var(--purple);
+      transform: translateX(4px);
+      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.1);
     }
 
     .req-ck {
@@ -305,12 +319,15 @@
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 24px;
-      transition: border-color .2s, transform .2s
+      backdrop-filter: blur(12px);
+      transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .card:hover {
       border-color: var(--purple);
-      transform: translateY(-4px)
+      transform: translateY(-6px);
+      box-shadow: 0 15px 30px rgba(124, 58, 237, 0.15);
+      background: rgba(30, 41, 59, 0.9);
     }
 
     .card .icon {
@@ -409,7 +426,15 @@
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px 18px
+      padding: 14px 18px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+    }
+    
+    .driver:hover {
+      border-color: var(--gold);
+      transform: translateX(4px);
+      box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
     }
 
     .driver .rank {
@@ -637,7 +662,7 @@
   </div>
 
   <!-- PIPELINE -->
-  <section>
+  <section class="reveal">
     <div class="sec-label">How it works</div>
     <div class="sec-title">End-to-End HR ML Pipeline</div>
     <div class="sec-sub">Seven stages from raw HR data to actionable at-risk employee lists for the HR team.</div>
@@ -686,7 +711,7 @@
   </section>
 
   <!-- REQUIREMENTS -->
-  <section style="padding-top:0">
+  <section class="reveal" style="padding-top:0">
     <hr class="divider" style="margin-bottom:60px">
     <div class="sec-label">Project Requirements</div>
     <div class="sec-title">All 9 Requirements Covered</div>
@@ -713,7 +738,7 @@
   </section>
 
   <!-- DASHBOARD PAGES -->
-  <section style="padding-top:0">
+  <section class="reveal" style="padding-top:0">
     <hr class="divider" style="margin-bottom:60px">
     <div class="sec-label">Dashboard</div>
     <div class="sec-title">9 Pages — All Visual, No Code Needed</div>
@@ -765,7 +790,7 @@
   </section>
 
   <!-- RESULTS -->
-  <section style="padding-top:0">
+  <section class="reveal" style="padding-top:0">
     <hr class="divider" style="margin-bottom:60px">
     <div class="sec-label">Performance</div>
     <div class="sec-title">Model Results</div>
@@ -840,7 +865,7 @@
   </section>
 
   <!-- ATTRITION DRIVERS -->
-  <section style="padding-top:0">
+  <section class="reveal" style="padding-top:0">
     <hr class="divider" style="margin-bottom:60px">
     <div class="sec-label">Key Finding</div>
     <div class="sec-title">Top Attrition Drivers</div>
@@ -918,6 +943,20 @@
     </p>
   </footer>
 
-</body>
+  <script>
+    // Scroll reveal animation
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
+        }
+      });
+    }, { threshold: 0.1 });
 
+    reveals.forEach(reveal => {
+      observer.observe(reveal);
+    });
+  </script>
+</body>
 </html>
