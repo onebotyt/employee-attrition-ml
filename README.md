@@ -12,8 +12,8 @@
 ---
 
 ## 🔗 Live Demo
-> 👉 **[Open App on Streamlit Cloud](YOUR_STREAMLIT_LINK_HERE)**  
-> 👉 **[View on GitHub](YOUR_GITHUB_REPO_LINK)**
+> 👉 **[Open App on Streamlit Cloud](https://employee-attrition-ml-hswubfms4tdnfxhz7wbmn9.streamlit.app/)**  
+> 👉 **[View on GitHub](https://github.com/onebotyt/employee-attrition-ml.git)**
 
 ---
 
