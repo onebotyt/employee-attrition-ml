@@ -1103,7 +1103,7 @@ def page_atrisk():
         axes[0].set_ylabel("Number of Employees", color="#94a3b8")
         axes[0].legend(fontsize=10)
 
-        risk_counts = df_scored["Risk_Level"].value_counts().reindex(["High","Medium","Low"])
+        risk_counts = df_scored["Risk_Level"].value_counts().reindex(["🔴 High","🟡 Medium","🟢 Low"])
         risk_counts = risk_counts.fillna(0)
         axes[1].pie(risk_counts.values, labels=risk_counts.index,
                     colors=[RED, GOLD, GREEN],
