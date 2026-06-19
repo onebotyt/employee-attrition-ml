@@ -1138,4 +1138,14 @@ def page_atrisk():
         </div>""", unsafe_allow_html=True)
 
 
+# ════════════════════════════════════════════════════════════════════════════
+#  MAIN ROUTER
+# ════════════════════════════════════════════════════════════════════════════
+if   page == PAGES[0]: page_home()
+elif page == PAGES[1]: page_load()
+elif page == PAGES[2]: page_eda()
+elif page == PAGES[3]: page_preprocess()
+elif page == PAGES[4]: page_train()
+elif page == PAGES[5]: page_evaluate()
+elif page == PAGES[6]: page_predict()
 elif page == PAGES[7]: page_atrisk()
