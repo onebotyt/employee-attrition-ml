@@ -275,7 +275,7 @@ with st.sidebar:
         st.metric("Test Accuracy", f"{best['accuracy']*100:.1f}%")
 
     st.markdown("---")
-    st.caption("Gov. Polytechnic Nainital · IT Dept")
+    st.caption("Uttarakhand Government institute of Polytechnic Nainital · IT Dept")
 
 
 # ════════════════════════════════════════════════════════════════════════════
