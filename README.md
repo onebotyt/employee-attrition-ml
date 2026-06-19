@@ -118,7 +118,7 @@ jupyter notebook employee_attrition_prediction.ipynb
 | 📊 Evaluate | Confusion matrices, metrics, ROC curves, **feature importance (attrition drivers)** |
 | 🎯 Predict Employee | Input employee details → attrition risk + HR action recommendations |
 | ⚠️ At-Risk Employees | Score all employees, download at-risk CSV for HR team |
-| 🚀 How to Run & Host | Step-by-step + internship submission checklist |
+
 
 
 
@@ -140,7 +140,7 @@ df = df.drop(columns=['EmployeeCount', 'Over18', 'StandardHours'], errors='ignor
 ## 👤 Author
 
 **Girdhar Dhami**  
-Diploma in Information Technology (VI Semester)  
+Diploma in Information Technology (V Semester)  
 Uttarakhand Government institute of Polytechnic Nainital
 RISE Internship 2026 — Tamizhan Skills  
 📧 Rise@tamizhanskills.com | 🌐 www.tamizhanskills.com
