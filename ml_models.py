@@ -1,16 +1,4 @@
-"""
-ml_models.py — Pure NumPy implementations of ML algorithms
-No sklearn / scipy dependency — works even when BLAS DLLs are blocked.
-RISE Internship · Employee Attrition Prediction
 
-FIXES APPLIED (v2):
-  1. Prediction threshold changed 0.5 → 0.35 (better Recall for imbalanced data)
-  2. KNN now uses distance-weighted voting + class_weight support
-  3. Feature importance uses weighted Gini impurity reduction (not sample count)
-  4. SVM renamed to SVM (Linear) — honest labelling of what it actually does
-  5. LogisticRegression uses adaptive learning rate (lr decay per epoch)
-  6. Random Forest stores gini values in nodes for correct importance
-"""
 
 import numpy as np
 import pandas as pd

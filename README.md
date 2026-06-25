@@ -122,6 +122,8 @@ streamlit run app.py
 **Girdhar Dhami**  
 Diploma in Information Technology (V Semester)  
 Uttarakhand Government institute of Polytechnic Nainital
+
+------------
 RISE Internship 2026 — Tamizhan Skills  
 📧 Rise@tamizhanskills.com | 🌐 www.tamizhanskills.com
 
