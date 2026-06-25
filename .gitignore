@@ -1,26 +1,101 @@
-# Virtual environment
-venv/
-env/
-.env/
+# ══════════════════════════════════════════════════
+#  .gitignore — Employee Attrition ML | RISE Internship
+#  NEVER commit anything listed here to GitHub
+# ══════════════════════════════════════════════════
 
-# Python cache
+# ── Secrets & credentials (CRITICAL — never commit) ──
+.env
+.env.*
+secrets.toml
+.streamlit/secrets.toml
+*.key
+*.pem
+*.p12
+*.pfx
+api_keys.txt
+credentials.*
+
+# ── Trained model files (large + reproducible) ───
+saved_model/
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.pt
+*.pth
+
+# ── Generated output files ───────────────────────
+*.png
+*.jpg
+*.jpeg
+at_risk_employees.csv
+high_risk_*.csv
+predictions_*.csv
+output_*/
+
+# ── Python cache ─────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
 
-# Jupyter checkpoints
+# ── Jupyter ───────────────────────────────────────
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# Generated outputs (regenerated on run)
-*.png
-at_risk_employees.csv
-saved_model/
+# ── Virtual environments ─────────────────────────
+venv/
+env/
+.venv/
+.env/
+ENV/
+myenv/
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
+# ── IDE & editors ────────────────────────────────
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ── OS files ─────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Logs ─────────────────────────────────────────
+*.log
+logs/
+streamlit_logs/
+
+# ── Data files (uploaded by users — never commit) ─
+data/raw/
+data/uploads/
+user_data/
+uploaded_*.csv
+
+# ── Test / temporary files ───────────────────────
+tmp/
+temp/
+.tmp/
+test_output/

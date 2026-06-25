@@ -2,6 +2,14 @@
 ml_models.py — Pure NumPy implementations of ML algorithms
 No sklearn / scipy dependency — works even when BLAS DLLs are blocked.
 RISE Internship · Employee Attrition Prediction
+
+FIXES APPLIED (v2):
+  1. Prediction threshold changed 0.5 → 0.35 (better Recall for imbalanced data)
+  2. KNN now uses distance-weighted voting + class_weight support
+  3. Feature importance uses weighted Gini impurity reduction (not sample count)
+  4. SVM renamed to SVM (Linear) — honest labelling of what it actually does
+  5. LogisticRegression uses adaptive learning rate (lr decay per epoch)
+  6. Random Forest stores gini values in nodes for correct importance
 """
 
 import numpy as np
@@ -238,16 +246,18 @@ class LogisticRegression:
         n, d = X.shape
         self.coef_      = rng.normal(0, 0.01, d)
         self.intercept_ = 0.0
-        sw = self._sample_weights(y)
+        sw  = self._sample_weights(y)
         lam = 1.0 / (self.C * n)
 
-        for _ in range(self.max_iter):
+        # FIX: adaptive learning rate — decays each epoch for stable convergence
+        for epoch in range(self.max_iter):
+            lr_t  = self.lr / (1.0 + 0.01 * epoch)   # ← lr decay
             z     = X @ self.coef_ + self.intercept_
             p     = self._sigmoid(z)
             err   = (p - y) * sw
             grad  = X.T @ err / n + lam * self.coef_
-            self.coef_      -= self.lr * grad
-            self.intercept_ -= self.lr * err.mean()
+            self.coef_      -= lr_t * grad
+            self.intercept_ -= lr_t * err.mean()
         return self
 
     def predict_proba(self, X):
@@ -257,7 +267,8 @@ class LogisticRegression:
 
     def predict(self, X):
         X = np.asarray(X, dtype=float)
-        return (self._sigmoid(X @ self.coef_ + self.intercept_) >= 0.5).astype(int)
+        # FIX: threshold 0.35 instead of 0.5 → much better Recall on imbalanced data
+        return (self._sigmoid(X @ self.coef_ + self.intercept_) >= 0.35).astype(int)
 
 
 # ─────────────────────────────────────────────────────────
@@ -265,9 +276,11 @@ class LogisticRegression:
 # ─────────────────────────────────────────────────────────
 
 class _Node:
-    __slots__ = ["feat","thr","left","right","value","weight"]
+    __slots__ = ["feat","thr","left","right","value","weight","gini","left_gini","right_gini"]
     def __init__(self):
-        self.feat = self.thr = self.left = self.right = self.value = self.weight = None
+        self.feat = self.thr = self.left = self.right = None
+        self.value = self.weight = None
+        self.gini = self.left_gini = self.right_gini = 0.0
 
 
 class _DecisionTree:
@@ -315,6 +328,7 @@ class _DecisionTree:
     def _build(self, X, y, w, depth):
         node = _Node()
         node.weight = w.sum()
+        node.gini   = self._gini(y, w)   # store node gini for importance calc
         if depth >= self.max_depth or len(y) < self.min_samples_split or len(np.unique(y)) == 1:
             node.value = self._leaf_value(y, w)
             return node
@@ -326,6 +340,9 @@ class _DecisionTree:
         mask = X[:, feat] <= thr
         node.left  = self._build(X[mask],  y[mask],  w[mask],  depth+1)
         node.right = self._build(X[~mask], y[~mask], w[~mask], depth+1)
+        # Store children gini for correct importance calculation
+        node.left_gini  = node.left.gini
+        node.right_gini = node.right.gini
         return node
 
     def fit(self, X, y, sample_weight=None):
@@ -344,7 +361,8 @@ class _DecisionTree:
         return np.column_stack([1-p, p])
 
     def predict(self, X):
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        # FIX: threshold 0.35 instead of 0.5
+        return (self.predict_proba(X)[:, 1] >= 0.35).astype(int)
 
 
 # ─────────────────────────────────────────────────────────
@@ -396,23 +414,33 @@ class RandomForestClassifier:
             tree.fit(Xi, yi, wi)
             self.trees_.append(tree)
 
-        # Feature importance via mean impurity decrease (approximated)
         self.feature_importances_ = self._compute_importance(d)
         return self
 
+    # FIX: correct feature importance using weighted Gini impurity reduction
     def _compute_importance(self, d):
-        scores = np.zeros(d)
+        scores    = np.zeros(d)
+        n_total   = sum(t.root.weight for t in self.trees_) / len(self.trees_)
         for tree in self.trees_:
-            self._walk(tree.root, scores)
+            self._walk(tree.root, scores, tree.root.weight)
         total = scores.sum()
         return scores / total if total > 0 else scores
 
-    def _walk(self, node, scores):
+    def _walk(self, node, scores, n_total):
         if node is None or node.value is not None:
             return
-        scores[node.feat] += node.weight
-        self._walk(node.left,  scores)
-        self._walk(node.right, scores)
+        # Weighted Gini decrease — the correct sklearn formula
+        n_node  = node.weight
+        n_left  = node.left.weight  if node.left  else 0
+        n_right = node.right.weight if node.right else 0
+        impurity_decrease = (n_node / n_total) * (
+            node.gini
+            - (n_left  / n_node) * node.left_gini
+            - (n_right / n_node) * node.right_gini
+        )
+        scores[node.feat] += max(0.0, impurity_decrease)
+        self._walk(node.left,  scores, n_total)
+        self._walk(node.right, scores, n_total)
 
     def predict_proba(self, X):
         X = np.asarray(X, dtype=float)
@@ -421,7 +449,8 @@ class RandomForestClassifier:
 
     def predict(self, X):
         X = np.asarray(X, dtype=float)
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        # FIX: threshold 0.35 instead of 0.5
+        return (self.predict_proba(X)[:, 1] >= 0.35).astype(int)
 
 
 # ─────────────────────────────────────────────────────────
@@ -429,17 +458,29 @@ class RandomForestClassifier:
 # ─────────────────────────────────────────────────────────
 
 class KNeighborsClassifier:
-    def __init__(self, n_neighbors=5):
-        self.n_neighbors = n_neighbors
-        self.X_train_    = None
-        self.y_train_    = None
+    def __init__(self, n_neighbors=5, weights="distance", class_weight=None):
+        self.n_neighbors  = n_neighbors
+        self.weights      = weights      # FIX: default distance-weighted
+        self.class_weight = class_weight
+        self.X_train_     = None
+        self.y_train_     = None
+        self._cw          = {}
 
     def get_params(self):
-        return dict(n_neighbors=self.n_neighbors)
+        return dict(n_neighbors=self.n_neighbors, weights=self.weights,
+                    class_weight=self.class_weight)
 
     def fit(self, X, y):
         self.X_train_ = np.asarray(X, dtype=float)
         self.y_train_ = np.asarray(y)
+        # FIX: compute class weights for imbalanced data
+        if self.class_weight == "balanced":
+            classes, counts = np.unique(y, return_counts=True)
+            total = len(y)
+            self._cw = {c: total / (len(classes) * cnt)
+                        for c, cnt in zip(classes, counts)}
+        else:
+            self._cw = {c: 1.0 for c in np.unique(y)}
         return self
 
     def _distances(self, x):
@@ -452,13 +493,26 @@ class KNeighborsClassifier:
         for x in X:
             dists = self._distances(x)
             nn    = np.argsort(dists)[:self.n_neighbors]
-            p1    = self.y_train_[nn].mean()
-            probs.append([1-p1, p1])
+            nn_y  = self.y_train_[nn]
+            nn_d  = dists[nn]
+
+            # FIX: distance-weighted voting (closer neighbours matter more)
+            if self.weights == "distance":
+                w = 1.0 / (nn_d + 1e-8)
+            else:
+                w = np.ones(len(nn))
+
+            # FIX: multiply by class weight for imbalanced handling
+            cw = np.array([self._cw.get(yi, 1.0) for yi in nn_y])
+            w  = w * cw
+
+            p1 = np.sum(w[nn_y == 1]) / (w.sum() + 1e-8)
+            probs.append([1 - p1, p1])
         return np.array(probs)
 
     def predict(self, X):
-        X = np.asarray(X, dtype=float)
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        # FIX: threshold 0.35 instead of 0.5
+        return (self.predict_proba(X)[:, 1] >= 0.35).astype(int)
 
 
 # ─────────────────────────────────────────────────────────
@@ -466,7 +520,12 @@ class KNeighborsClassifier:
 # ─────────────────────────────────────────────────────────
 
 class SVC:
-    """Simplified SVM via mini-batch subgradient — good enough for HR data."""
+    """
+    Linear SVM via mini-batch subgradient descent.
+    NOTE: kernel parameter is accepted for API compatibility but this
+    implementation uses a linear decision boundary only (no kernel trick).
+    Use kernel='linear' for honest labelling.
+    """
     def __init__(self, kernel="rbf", C=1.0, class_weight=None,
                  probability=True, random_state=42, gamma="scale"):
         self.kernel       = kernel
@@ -531,5 +590,5 @@ class SVC:
         return self._lr_model.predict_proba(scores)
 
     def predict(self, X):
-        X = np.asarray(X, dtype=float)
-        return (self.decision_function(X) >= 0).astype(int)
+        # FIX: use calibrated probability threshold 0.35 (not raw decision score >= 0)
+        return (self.predict_proba(X)[:, 1] >= 0.35).astype(int)

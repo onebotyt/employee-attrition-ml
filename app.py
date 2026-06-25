@@ -25,6 +25,14 @@ warnings.filterwarnings("ignore")
 plt.rcParams["figure.dpi"] = 110
 
 # ════════════════════════════════════════════════════════════════════════════
+#  SECURITY CONSTANTS
+# ════════════════════════════════════════════════════════════════════════════
+MAX_UPLOAD_ROWS   = 50_000   # max rows allowed in uploaded CSV
+MAX_UPLOAD_MB     = 10       # max file size in MB
+ALLOWED_ATTRITION = {0, 1}   # only 0 and 1 allowed in Attrition column
+REQUIRED_COLUMNS  = {"Attrition"}  # must exist in any uploaded CSV
+
+# ════════════════════════════════════════════════════════════════════════════
 #  PAGE CONFIG
 # ════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
@@ -198,6 +206,11 @@ def generate_hr_data(n: int = 1000, seed: int = 42) -> pd.DataFrame:
 
 
 def preprocess_df(df: pd.DataFrame):
+    """
+    Encode categorical columns only — NO scaling here.
+    Scaling must happen AFTER train/test split to avoid data leakage.
+    Returns unscaled X so the caller can fit scaler on train set only.
+    """
     data = df.drop(columns=["EmployeeID", "Attrition"], errors="ignore").copy()
     y    = df["Attrition"].values
     cat_cols = data.select_dtypes("object").columns.tolist()
@@ -207,9 +220,8 @@ def preprocess_df(df: pd.DataFrame):
         le = LabelEncoder()
         data[col] = le.fit_transform(data[col])
         encoders[col] = le
-    scaler = StandardScaler()
-    data[num_cols] = scaler.fit_transform(data[num_cols])
-    return data.values, y, scaler, encoders, data.columns.tolist()
+    # FIX: scaler returned as None — caller must fit scaler after split
+    return data.values, y, None, encoders, data.columns.tolist()
 
 
 def fig_bytes(fig) -> bytes:
@@ -217,6 +229,47 @@ def fig_bytes(fig) -> bytes:
     fig.savefig(buf, format="png", bbox_inches="tight", dpi=130)
     buf.seek(0)
     return buf.getvalue()
+
+
+def validate_uploaded_csv(df: pd.DataFrame) -> tuple[bool, str]:
+    """
+    Validate an uploaded CSV file before processing.
+    Returns (is_valid, error_message).
+    """
+    # Check row count
+    if len(df) > MAX_UPLOAD_ROWS:
+        return False, f"File has {len(df):,} rows. Maximum allowed is {MAX_UPLOAD_ROWS:,}."
+
+    # Check required columns
+    missing = REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        return False, f"Missing required column(s): {', '.join(missing)}."
+
+    # Check Attrition values are only 0 or 1
+    unique_vals = set(df["Attrition"].dropna().unique())
+    if not unique_vals.issubset(ALLOWED_ATTRITION):
+        bad_vals = unique_vals - ALLOWED_ATTRITION
+        return False, f"Attrition column contains invalid values: {bad_vals}. Only 0 and 1 are allowed."
+
+    # Check minimum rows
+    if len(df) < 50:
+        return False, f"File has only {len(df)} rows. Minimum 50 rows needed for training."
+
+    # Check for excessively wide files
+    if df.shape[1] > 100:
+        return False, f"File has {df.shape[1]} columns. Maximum allowed is 100."
+
+    return True, ""
+
+
+def sanitize_html(text: str) -> str:
+    """Escape user-supplied text before embedding in HTML."""
+    return (str(text)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;"))
 
 
 def pill(ok):
@@ -395,28 +448,38 @@ def page_load():
             st.success("✅ HR dataset ready! Proceed to EDA & Employee Trends →")
 
     with tab2:
+        st.info(f"📋 Limits: max **{MAX_UPLOAD_ROWS:,} rows**, **{MAX_UPLOAD_MB} MB**, CSV format only.")
         uploaded = st.file_uploader("Upload HR CSV (must include 'Attrition' column, 0=Stays 1=Leaves)",
                                      type=["csv"])
         if uploaded:
-            try:
-                df = pd.read_csv(uploaded)
-                if "Attrition" not in df.columns:
-                    # Try to encode Yes/No
-                    if df.select_dtypes("object").apply(lambda c: c.str.lower().isin(["yes","no"]).any()).any():
-                        for col in df.select_dtypes("object").columns:
-                            if df[col].str.lower().isin(["yes","no"]).all():
-                                df[col] = (df[col].str.lower() == "yes").astype(int)
-                if "Attrition" not in df.columns:
-                    st.error("CSV must contain 'Attrition' column.")
-                else:
-                    st.session_state.df_raw       = df
-                    st.session_state.data_ready   = True
-                    st.session_state.preprocessed = False
-                    st.session_state.trained      = False
-                    st.success(f"✅ Uploaded: {df.shape[0]} rows × {df.shape[1]} cols")
-                    st.dataframe(df.head(), use_container_width=True)
-            except Exception as e:
-                st.error(f"Error: {e}")
+            # Security: check file size before reading
+            file_size_mb = uploaded.size / (1024 * 1024)
+            if file_size_mb > MAX_UPLOAD_MB:
+                st.error(f"⚠️ File is {file_size_mb:.1f} MB. Maximum allowed size is {MAX_UPLOAD_MB} MB.")
+            else:
+                try:
+                    df = pd.read_csv(uploaded)
+
+                    # Auto-encode Yes/No Attrition if needed
+                    if "Attrition" in df.columns and df["Attrition"].dtype == object:
+                        if df["Attrition"].str.lower().isin(["yes","no"]).all():
+                            df["Attrition"] = (df["Attrition"].str.lower() == "yes").astype(int)
+
+                    # Security: validate before accepting
+                    is_valid, err_msg = validate_uploaded_csv(df)
+                    if not is_valid:
+                        st.error(f"⚠️ Invalid file: {err_msg}")
+                    else:
+                        st.session_state.df_raw       = df
+                        st.session_state.data_ready   = True
+                        st.session_state.preprocessed = False
+                        st.session_state.trained      = False
+                        st.success(f"✅ Uploaded: {df.shape[0]:,} rows × {df.shape[1]} cols")
+                        st.dataframe(df.head(), use_container_width=True)
+
+                except Exception:
+                    # Security: never expose raw exception messages to users
+                    st.error("⚠️ Could not read the CSV file. Please ensure it is a valid CSV with an 'Attrition' column (0 or 1).")
 
     if st.session_state.data_ready:
         st.markdown("---")
@@ -696,9 +759,13 @@ Maintains the ~17% attrition ratio in both train and test sets.
 
     if st.button("✅ Apply Feature Engineering & Split", type="primary", use_container_width=True):
         with st.spinner("Preprocessing..."):
-            X, y, scaler, encoders, feat_names = preprocess_df(df)
+            X, y, _, encoders, feat_names = preprocess_df(df)
             X_train, X_test, y_train, y_test   = train_test_split(
                 X, y, test_size=test_sz, random_state=rs, stratify=y)
+            # FIX: fit scaler on TRAINING data only — prevents data leakage
+            scaler     = StandardScaler()
+            X_train    = scaler.fit_transform(X_train)   # fit + transform train
+            X_test     = scaler.transform(X_test)         # transform only (no fit)
         st.session_state.X_train      = X_train
         st.session_state.X_test       = X_test
         st.session_state.y_train      = y_train
@@ -713,7 +780,7 @@ Maintains the ~17% attrition ratio in both train and test sets.
         b.metric("Test samples",   f"{len(X_test):,}")
         c.metric("Train attrition", f"{y_train.mean()*100:.1f}%")
         d.metric("Features",       f"{X_train.shape[1]}")
-        st.success("✅ Preprocessing done! Proceed to Train Models →")
+        st.success("✅ Preprocessing done! Scaler fitted on training data only (no leakage). Proceed to Train Models →")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -731,7 +798,7 @@ def page_train():
         lr_c   = st.slider("LR — C", 0.01, 10.0, 1.0, disabled=not use_lr)
     with col2:
         use_rf = st.checkbox("Random Forest", True)
-        rf_n   = st.slider("RF — Trees", 50, 300, 100, 50, disabled=not use_rf)
+        rf_n   = st.slider("RF — Trees", 50, 300, 200, 50, disabled=not use_rf)
     with col3:
         use_svm = st.checkbox("SVM (RBF)", True)
         svm_c   = st.slider("SVM — C", 0.1, 10.0, 1.0, disabled=not use_svm)
@@ -757,10 +824,12 @@ def page_train():
                         C=lr_c, class_weight="balanced", random_state=42, max_iter=500)
         if use_rf:  mdls["Random Forest"]       = RandomForestClassifier(
                         n_estimators=rf_n, class_weight="balanced", random_state=42, n_jobs=-1)
-        if use_svm: mdls["SVM (RBF)"]           = SVC(
-                        kernel="rbf", C=svm_c, class_weight="balanced",
+        if use_svm: mdls["SVM (Linear)"]         = SVC(
+                        kernel="linear", C=svm_c, class_weight="balanced",
                         probability=True, random_state=42)
-        if use_knn: mdls["KNN"]                 = KNeighborsClassifier(n_neighbors=knn_k)
+        if use_knn: mdls["KNN (Weighted)"]        = KNeighborsClassifier(
+                        n_neighbors=knn_k, weights="distance",
+                        class_weight="balanced")
 
         X_train = st.session_state.X_train; X_test = st.session_state.X_test
         y_train = st.session_state.y_train; y_test = st.session_state.y_test
@@ -997,14 +1066,15 @@ def page_predict():
             "YearsWithCurrManager": min(yrs_co, 4),
         }])
         try:
-            num_c = row.select_dtypes(include=np.number).columns.tolist()
+            # Encode categoricals first
             for col in row.select_dtypes("object").columns:
                 if col in encoders:
                     row[col] = encoders[col].transform(row[col])
-            row[num_c] = scaler.transform(row[num_c])
-            row = row[feat_cols]
-            pred  = best_model.predict(row)[0]
-            proba = best_model.predict_proba(row)[0] if hasattr(best_model,"predict_proba") else None
+            # Reorder to match training feature order, then scale
+            row = row.reindex(columns=feat_cols, fill_value=0)
+            row_scaled = scaler.transform(row.values)
+            pred  = best_model.predict(row_scaled)[0]
+            proba = best_model.predict_proba(row_scaled)[0] if hasattr(best_model,"predict_proba") else None
             risk  = proba[1] if proba is not None else float(pred)
 
             st.markdown("---")
@@ -1041,8 +1111,10 @@ def page_predict():
             else:
                 st.success("✅ Employee is likely to stay. Focus on continued engagement "
                            "and recognition to maintain satisfaction.")
-        except Exception as e:
-            st.error(f"Prediction error: {e}")
+        except Exception:
+            # Security: never expose internal error details to users
+            st.error("⚠️ Prediction failed. Please complete all steps in order: "
+                     "Load Data → Preprocess → Train Models — then try again.")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1067,14 +1139,14 @@ def page_atrisk():
     if st.button("🔍 Identify At-Risk Employees", type="primary"):
         with st.spinner("Scoring all employees..."):
             data = df.drop(columns=["EmployeeID","Attrition"], errors="ignore").copy()
-            num_c = data.select_dtypes(include=np.number).columns.tolist()
             for col in data.select_dtypes("object").columns:
                 if col in encoders:
                     data[col] = encoders[col].transform(data[col])
-            data[num_c] = scaler.transform(data[num_c])
-            data   = data[feat_cols]
-            proba  = model.predict_proba(data)[:,1] if hasattr(model,"predict_proba") \
-                     else model.predict(data).astype(float)
+            # FIX: reorder columns to match training order, then scale all at once
+            data   = data.reindex(columns=feat_cols, fill_value=0)
+            data_s = scaler.transform(data.values)
+            proba  = model.predict_proba(data_s)[:,1] if hasattr(model,"predict_proba") \
+                     else model.predict(data_s).astype(float)
 
         df_scored = df.copy()
         df_scored["Attrition_Probability_%"] = np.round(proba * 100, 1)

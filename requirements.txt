@@ -1,6 +1,13 @@
-streamlit>=1.35.0
-numpy>=1.24.0
-pandas>=2.0.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-scikit-learn>=1.3.0
+# Employee Attrition Prediction — RISE Internship
+# Pinned versions for reproducible & secure Streamlit Cloud deployment
+# Last updated: June 2026
+
+streamlit==1.45.1
+numpy==2.4.4
+pandas==3.0.2
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# NOTE: scikit-learn is imported only for LabelEncoder and StandardScaler
+# All ML models are pure NumPy (ml_models.py)
+scikit-learn==1.8.0
