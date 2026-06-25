@@ -118,5 +118,4 @@ Streamlit Cloud **auto-redeploys** within 1-2 minutes. No manual step needed.
 
 ---
 
-## 📞 Tamizhan Skills Contact
-Rise@tamizhanskills.com | www.tamizhanskills.com | +91 6383418100
+
