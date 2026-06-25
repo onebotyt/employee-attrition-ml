@@ -15,7 +15,7 @@ import warnings, pickle, io
 # Pure NumPy ML — no sklearn/scipy needed (avoids BLAS DLL issues)
 from ml_models import (
     train_test_split, cross_val_score, StratifiedKFold,
-    StandardScaler, LabelEncoder,
+    StandardScaler, LabelEncoder, SMOTE,
     LogisticRegression, RandomForestClassifier, SVC, KNeighborsClassifier,
     accuracy_score, recall_score, precision_score,
     f1_score, classification_report, confusion_matrix, roc_auc_score, roc_curve,
@@ -747,6 +747,7 @@ Maintains the ~17% attrition ratio in both train and test sets.
         st.subheader("⚙️ Configure Split")
         test_sz = st.slider("Test set size", 0.10, 0.40, 0.20, 0.05)
         rs      = st.number_input("Random state", 0, 99, 42)
+        use_smote = st.checkbox("🔄 Apply SMOTE (oversample minority class)", True)
         cat_cols = df.select_dtypes("object").drop(
             columns=["EmployeeID"] if "EmployeeID" in df.columns else [], errors="ignore"
         ).columns.tolist()
@@ -762,6 +763,18 @@ Maintains the ~17% attrition ratio in both train and test sets.
             X, y, _, encoders, feat_names = preprocess_df(df)
             X_train, X_test, y_train, y_test   = train_test_split(
                 X, y, test_size=test_sz, random_state=rs, stratify=y)
+
+            # SMOTE — oversample minority class on TRAINING data only
+            smote_info = None
+            if use_smote:
+                before_counts = {int(c): int(n) for c, n in
+                                 zip(*np.unique(y_train, return_counts=True))}
+                sm = SMOTE(k_neighbors=5, random_state=rs)
+                X_train, y_train = sm.fit_resample(X_train, y_train)
+                after_counts = {int(c): int(n) for c, n in
+                                zip(*np.unique(y_train, return_counts=True))}
+                smote_info = (before_counts, after_counts)
+
             # FIX: fit scaler on TRAINING data only — prevents data leakage
             scaler     = StandardScaler()
             X_train    = scaler.fit_transform(X_train)   # fit + transform train
@@ -780,7 +793,19 @@ Maintains the ~17% attrition ratio in both train and test sets.
         b.metric("Test samples",   f"{len(X_test):,}")
         c.metric("Train attrition", f"{y_train.mean()*100:.1f}%")
         d.metric("Features",       f"{X_train.shape[1]}")
-        st.success("✅ Preprocessing done! Scaler fitted on training data only (no leakage). Proceed to Train Models →")
+
+        if smote_info:
+            before, after = smote_info
+            st.markdown("""<div class="insight-box">
+            🔄 <b>SMOTE Applied</b> — Minority class oversampled on training data only (no test leakage).<br>
+            <b>Before:</b> Stayed={} · Left={}<br>
+            <b>After:</b>  Stayed={} · Left={} (balanced ✅)
+            </div>""".format(before.get(0,0), before.get(1,0),
+                             after.get(0,0), after.get(1,0)),
+                        unsafe_allow_html=True)
+            st.success("✅ Preprocessing + SMOTE done! Proceed to Train Models →")
+        else:
+            st.success("✅ Preprocessing done! Scaler fitted on training data only (no leakage). Proceed to Train Models →")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -844,6 +869,7 @@ def page_train():
             y_pred  = model.predict(X_test)
             y_proba = model.predict_proba(X_test)[:,1] if hasattr(model,"predict_proba") else None
             results[name] = {"model":model,"cv_recall":cv.mean(),"cv_std":cv.std(),
+                             "cv_scores":cv,  # full per-fold scores for CV tab
                              "accuracy":accuracy_score(y_test,y_pred),
                              "recall":recall_score(y_test,y_pred),
                              "precision":precision_score(y_test,y_pred),
@@ -863,6 +889,18 @@ def page_train():
         st.session_state.results   = results
         st.session_state.best_name = best_name
         st.session_state.trained   = True
+
+        # Training history — store results from each run for comparison
+        if "training_history" not in st.session_state:
+            st.session_state.training_history = []
+        run_summary = {"run": len(st.session_state.training_history) + 1,
+                       "best": best_name, "n_models": len(mdls),
+                       "train_size": len(st.session_state.X_train)}
+        for name, res in results.items():
+            run_summary[f"{name}_recall"] = res["recall"]
+            run_summary[f"{name}_acc"]    = res["accuracy"]
+        st.session_state.training_history.append(run_summary)
+
         st.success(f"✅ Complete! Best Recall: **{best_name}** "
                    f"({results[best_name]['recall']*100:.1f}%)")
         st.dataframe(pd.DataFrame(rows).set_index("Model"), use_container_width=True)
@@ -888,11 +926,14 @@ def page_evaluate():
         cs.metric(name, f"Recall {res['recall']*100:.1f}%",
                   f"Acc {res['accuracy']*100:.1f}%")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🗂️ Confusion Matrices",
         "📈 Metrics Comparison",
         "📉 ROC Curves",
         "🔑 Attrition Drivers",
+        "📊 Cross-Validation",
+        "🧠 Explainability",
+        "📈 Training History",
         "💾 Download Model",
     ])
 
@@ -992,6 +1033,49 @@ def page_evaluate():
             st.info("Train with Random Forest selected to see feature importance.")
 
     with tab5:
+        st.subheader("📊 Cross-Validation Stability")
+        cv_means = [res["cv_recall"]*100 for res in results.values()]
+        cv_stds  = [res["cv_std"]*100 for res in results.values()]
+        names    = list(results.keys())
+        fig, ax  = dark_fig(figsize=(8, 4))
+        ax.bar(names, cv_means, yerr=cv_stds, capsize=5, color=BLUE, edgecolor="#0f172a", alpha=0.9)
+        ax.set_title("10-Fold CV Recall (Mean ± Std)", color="#e2e8f0", fontweight="bold")
+        ax.set_ylabel("Recall %", color="#94a3b8")
+        ax.set_ylim(max(0, min(cv_means)-15), 105)
+        st.pyplot(fig)
+        st.download_button("⬇️ Download PNG", fig_bytes(fig), "cv_stability.png", "image/png")
+        plt.close(fig)
+
+    with tab6:
+        st.subheader("🧠 Model Explainability")
+        st.markdown("Understanding *why* the model makes certain predictions.")
+        if "Logistic Regression" in results:
+            st.markdown("**Logistic Regression — Feature Contributions (Coefficients)**")
+            lr = results["Logistic Regression"]["model"]
+            coefs = pd.DataFrame({"Feature": feat_cols, "Weight": lr.coef_[0]})
+            coefs["Absolute"] = coefs["Weight"].abs()
+            coefs = coefs.sort_values("Absolute", ascending=False).head(10)
+            fig, ax = dark_fig(figsize=(8, 5))
+            colors = [RED if c > 0 else GREEN for c in coefs["Weight"]]
+            ax.barh(coefs["Feature"], coefs["Weight"], color=colors, edgecolor="#0f172a")
+            ax.set_title("Top 10 Features (Red = Drives Attrition, Green = Drives Retention)", color="#e2e8f0")
+            st.pyplot(fig)
+            plt.close(fig)
+        else:
+            st.info("Train Logistic Regression to see coefficient explanations.")
+
+    with tab7:
+        st.subheader("📈 Training History")
+        if "training_history" in st.session_state and st.session_state.training_history:
+            hist_df = pd.DataFrame(st.session_state.training_history).set_index("run")
+            st.dataframe(hist_df, use_container_width=True)
+            if st.button("🗑️ Clear History"):
+                st.session_state.training_history = []
+                st.rerun()
+        else:
+            st.info("No training history yet. Train models to populate this table.")
+
+    with tab8:
         buf = io.BytesIO()
         pickle.dump({"model":best["model"],"scaler":st.session_state.scaler,
                      "encoders":st.session_state.encoders,"features":feat_cols}, buf)
@@ -1049,6 +1133,14 @@ def page_predict():
         yrs_promo= st.slider("Years Since Last Promotion", 0, 15, 3)
 
     if st.button("🔮 Predict Attrition Risk", type="primary", use_container_width=True):
+        # Input Validation (Logical Constraints)
+        if yrs_co > (age - 18):
+            st.error(f"⚠️ Invalid input: A {age}-year-old cannot have worked at the company for {yrs_co} years (assuming they started working at age 18).")
+            return
+        if yrs_promo > yrs_co:
+            st.error(f"⚠️ Invalid input: Years since last promotion ({yrs_promo}) cannot be greater than total years at company ({yrs_co}).")
+            return
+
         row = pd.DataFrame([{
             "Age": age, "Department": dept, "EducationField": edu_fld,
             "Education": edu, "Gender": gender, "JobRole": job_role,
@@ -1096,6 +1188,25 @@ def page_predict():
                 ax.set_title("Prediction Confidence", color="#e2e8f0", fontsize=11, fontweight="bold")
                 plt.tight_layout()
                 st.pyplot(fig); plt.close(fig)
+
+            # 🧠 Per-Employee Explanation (SHAP-like feature contributions)
+            if "Logistic Regression" in st.session_state.results:
+                st.markdown("### 🧠 Why did the model make this prediction?")
+                lr = st.session_state.results["Logistic Regression"]["model"]
+                coefs = lr.coef_[0]
+                contributions = coefs * row_scaled[0]
+                contrib_df = pd.DataFrame({"Feature": feat_cols, "Contribution": contributions})
+                contrib_df["Absolute"] = contrib_df["Contribution"].abs()
+                top_drivers = contrib_df.sort_values("Absolute", ascending=False).head(6)
+
+                fig_exp, ax_exp = dark_fig(figsize=(8, 4))
+                colors = [RED if c > 0 else GREEN for c in top_drivers["Contribution"]]
+                ax_exp.barh(top_drivers["Feature"], top_drivers["Contribution"], color=colors, edgecolor="#0f172a")
+                ax_exp.set_title("Top Factors Influencing This Employee (Red = Push to Leave, Green = Push to Stay)",
+                                 color="#e2e8f0", fontsize=10, fontweight="bold")
+                ax_exp.set_xlabel("Feature Contribution Magnitude", color="#94a3b8")
+                plt.tight_layout()
+                st.pyplot(fig_exp); plt.close(fig_exp)
 
             if pred == 1:
                 box = "risk-high" if risk > 0.65 else "risk-med"

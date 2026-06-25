@@ -61,6 +61,63 @@ class StandardScaler:
 
 
 # ─────────────────────────────────────────────────────────
+#  SMOTE — Synthetic Minority Over-sampling
+# ─────────────────────────────────────────────────────────
+
+class SMOTE:
+    """
+    Pure NumPy SMOTE (Synthetic Minority Over-sampling Technique).
+    Generates synthetic samples for the minority class using
+    k-nearest-neighbor interpolation.
+    """
+    def __init__(self, k_neighbors=5, random_state=42):
+        self.k_neighbors  = k_neighbors
+        self.random_state = random_state
+
+    def fit_resample(self, X, y):
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+        rng = np.random.default_rng(self.random_state)
+
+        classes, counts = np.unique(y, return_counts=True)
+        majority_count  = counts.max()
+
+        X_resampled = [X.copy()]
+        y_resampled = [y.copy()]
+
+        for cls, cnt in zip(classes, counts):
+            if cnt >= majority_count:
+                continue  # skip majority class
+
+            n_synthetic = majority_count - cnt
+            X_minority  = X[y == cls]
+            n_min       = len(X_minority)
+            k = min(self.k_neighbors, n_min - 1)
+            if k < 1:
+                # Too few samples to interpolate — just duplicate
+                idx = rng.choice(n_min, size=n_synthetic, replace=True)
+                X_resampled.append(X_minority[idx])
+                y_resampled.append(np.full(n_synthetic, cls))
+                continue
+
+            # Compute pairwise distances for minority samples
+            synthetic = np.empty((n_synthetic, X.shape[1]))
+            for i in range(n_synthetic):
+                idx    = rng.integers(0, n_min)
+                sample = X_minority[idx]
+                dists  = np.sqrt(((X_minority - sample) ** 2).sum(axis=1))
+                nn_idx = np.argsort(dists)[1:k+1]  # exclude self
+                neighbor = X_minority[rng.choice(nn_idx)]
+                lam = rng.random()
+                synthetic[i] = sample + lam * (neighbor - sample)
+
+            X_resampled.append(synthetic)
+            y_resampled.append(np.full(n_synthetic, cls))
+
+        return np.vstack(X_resampled), np.concatenate(y_resampled)
+
+
+# ─────────────────────────────────────────────────────────
 #  TRAIN / TEST SPLIT
 # ─────────────────────────────────────────────────────────
 

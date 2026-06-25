@@ -7,7 +7,3 @@ numpy==2.4.4
 pandas==2.3.3
 matplotlib==3.10.8
 seaborn==0.13.2
-
-# NOTE: scikit-learn is imported only for LabelEncoder and StandardScaler
-# All ML models are pure NumPy (ml_models.py)
-scikit-learn==1.8.0
