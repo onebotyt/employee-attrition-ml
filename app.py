@@ -335,88 +335,40 @@ code {
 #  HELPERS
 # ════════════════════════════════════════════════════════════════════════════
 
-def generate_hr_data(n: int = 1000, seed: int = 42) -> pd.DataFrame:
-    """Generate synthetic IBM-style HR employee dataset with realistic attrition patterns."""
-    rng = np.random.default_rng(seed)
-
-    dept        = rng.choice(DEPARTMENTS, n, p=[0.13, 0.57, 0.30])
-    job_role    = rng.choice(JOB_ROLES,   n)
-    gender      = rng.choice(["Male", "Female"], n, p=[0.60, 0.40])
-    marital     = rng.choice(["Single", "Married", "Divorced"], n, p=[0.32, 0.46, 0.22])
-    overtime    = rng.choice(["Yes", "No"], n, p=[0.28, 0.72])
-    edu_field   = rng.choice(["Life Sciences", "Medical", "Marketing",
-                               "Technical Degree", "Human Resources", "Other"],
-                              n, p=[0.41, 0.27, 0.15, 0.09, 0.05, 0.03])
-    education   = rng.integers(1, 6, n)       # 1=Below College .. 5=Doctor
-    env_sat     = rng.integers(1, 5, n)        # 1=Low .. 4=Very High
-    job_sat     = rng.integers(1, 5, n)
-    job_inv     = rng.integers(1, 5, n)
-    job_lvl     = rng.integers(1, 6, n)
-    rel_sat     = rng.integers(1, 5, n)
-    stock       = rng.integers(0, 4, n)
-    wlb         = rng.integers(1, 5, n)        # Work-Life Balance
-    perf_rating = rng.integers(3, 5, n)        # 3=Excellent 4=Outstanding
-
-    age               = rng.integers(18, 61, n)
-    monthly_income    = np.round(rng.uniform(1000, 20000, n), 0).astype(int)
-    num_companies     = rng.integers(0, 10, n)
-    pct_salary_hike   = rng.integers(11, 26, n)
-    total_working_yrs = rng.integers(0, 41, n)
-    training_times    = rng.integers(0, 7, n)
-    yrs_at_company    = rng.integers(0, 41, n)
-    yrs_curr_role     = np.clip(rng.integers(0, 19, n), 0, yrs_at_company)
-    yrs_last_promo    = np.clip(rng.integers(0, 16, n), 0, yrs_at_company)
-    yrs_curr_mgr      = np.clip(rng.integers(0, 18, n), 0, yrs_at_company)
-
-    # Attrition probability — based on IBM HR Analytics real patterns
-    p = np.full(n, 0.04)
-    p += (overtime   == "Yes")               * 0.20
-    p += (job_sat    <= 2)                   * 0.14
-    p += (env_sat    <= 2)                   * 0.09
-    p += (wlb        == 1)                   * 0.12
-    p += (yrs_at_company < 3)               * 0.14
-    p += (monthly_income < 3000)             * 0.10
-    p += (marital    == "Single")            * 0.08
-    p += (dept       == "Sales")             * 0.05
-    p += (job_inv    <= 2)                   * 0.07
-    p += (stock      == 0)                   * 0.05
-    p += (num_companies > 5)                 * 0.05
-    p += (yrs_last_promo > 6)               * 0.06
-    p -= (yrs_at_company > 15)              * 0.08
-    p -= (job_lvl    >= 3)                   * 0.05
-    p -= (job_sat    == 4)                   * 0.05
-    p  = np.clip(p, 0.01, 0.95)
-    attrition = (rng.random(n) < p).astype(int)
-
-    return pd.DataFrame({
-        "EmployeeID":             [f"EMP-{i+1:04d}" for i in range(n)],
-        "Age":                    age,
-        "Department":             dept,
-        "EducationField":         edu_field,
-        "Education":              education,
-        "Gender":                 gender,
-        "JobRole":                job_role,
-        "JobLevel":               job_lvl,
-        "MaritalStatus":          marital,
-        "OverTime":               overtime,
-        "EnvironmentSatisfaction":env_sat,
-        "JobInvolvement":         job_inv,
-        "JobSatisfaction":        job_sat,
-        "RelationshipSatisfaction":rel_sat,
-        "WorkLifeBalance":        wlb,
-        "PerformanceRating":      perf_rating,
-        "StockOptionLevel":       stock,
-        "MonthlyIncome":          monthly_income,
-        "NumCompaniesWorked":     num_companies,
-        "PercentSalaryHike":      pct_salary_hike,
-        "TotalWorkingYears":      total_working_yrs,
-        "TrainingTimesLastYear":  training_times,
-        "YearsAtCompany":         yrs_at_company,
-        "YearsInCurrentRole":     yrs_curr_role,
-        "YearsSinceLastPromotion":yrs_last_promo,
-        "YearsWithCurrManager":   yrs_curr_mgr,
-        "Attrition":              attrition,
-    })
+def load_kaggle_dataset(filepath: str = "employee_attrition_dataset.csv") -> pd.DataFrame:
+    """Load and standardize the Kaggle dataset to match the dashboard's expected schema."""
+    df = pd.read_csv(filepath)
+    
+    # 1. Standardise column names (remove underscores, camel case)
+    col_mapping = {
+        "Employee_ID": "EmployeeID",
+        "Marital_Status": "MaritalStatus",
+        "Job_Role": "JobRole",
+        "Job_Level": "JobLevel",
+        "Monthly_Income": "MonthlyIncome",
+        "Hourly_Rate": "HourlyRate",
+        "Years_at_Company": "YearsAtCompany",
+        "Years_in_Current_Role": "YearsInCurrentRole",
+        "Years_Since_Last_Promotion": "YearsSinceLastPromotion",
+        "Work_Life_Balance": "WorkLifeBalance",
+        "Job_Satisfaction": "JobSatisfaction",
+        "Performance_Rating": "PerformanceRating",
+        "Training_Hours_Last_Year": "TrainingTimesLastYear", # map to old
+        "Project_Count": "ProjectCount",
+        "Average_Hours_Worked_Per_Week": "AverageHoursWorkedPerWeek",
+        "Work_Environment_Satisfaction": "EnvironmentSatisfaction", # map to old
+        "Relationship_with_Manager": "RelationshipSatisfaction", # map to old
+        "Job_Involvement": "JobInvolvement",
+        "Distance_From_Home": "DistanceFromHome",
+        "Number_of_Companies_Worked": "NumCompaniesWorked", # map to old
+    }
+    df = df.rename(columns=col_mapping)
+    
+    # 2. Map Attrition Yes/No to 1/0
+    if "Attrition" in df.columns and df["Attrition"].dtype == object:
+        df["Attrition"] = (df["Attrition"].str.lower() == "yes").astype(int)
+        
+    return df
 
 
 def preprocess_df(df: pd.DataFrame):
@@ -622,44 +574,39 @@ def page_home():
 def page_load():
     st.markdown('<div class="sec-head">📥 Load HR Dataset</div>', unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["🎲 Generate Synthetic HR Data", "📂 Upload CSV"])
+    tab1, tab2 = st.tabs(["🎲 Load Kaggle Dataset", "📂 Upload CSV"])
 
     with tab1:
         st.markdown("""<div class="insight-box">
-        Generates a <b>realistic IBM-style HR employee dataset</b> — no download required.<br>
-        Includes satisfaction scores, job details, compensation, tenure, and overtime —
-        all key attrition drivers based on real HR research.<br>
-        Attrition generated using business-realistic probability rules (~17% rate).
+        Loads the <b>Kaggle Employee Attrition dataset</b>.<br>
+        Includes real-world features like Absenteeism, OverTime, Job Satisfaction, and Distance From Home.
         </div>""", unsafe_allow_html=True)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            n_emp = st.slider("Number of employees", 200, 5000, 1000, 100)
-            seed  = st.number_input("Random seed", 0, 9999, 42)
-        with col2:
-            st.markdown("**Key HR Features Included:**")
-            st.markdown("- Age, Gender, MaritalStatus, Department\n"
-                        "- JobRole, JobLevel, Education, EducationField\n"
-                        "- MonthlyIncome, PercentSalaryHike, StockOptionLevel\n"
-                        "- OverTime, WorkLifeBalance, JobSatisfaction\n"
-                        "- EnvironmentSatisfaction, JobInvolvement\n"
-                        "- YearsAtCompany, YearsSinceLastPromotion\n"
-                        "- **Attrition** (target: 0=Stays, 1=Leaves)")
+        st.markdown("**Key HR Features Included:**")
+        st.markdown("- Age, Gender, MaritalStatus, Department, JobRole, JobLevel\n"
+                    "- MonthlyIncome, HourlyRate, ProjectCount, AverageHoursWorkedPerWeek\n"
+                    "- OverTime, WorkLifeBalance, JobSatisfaction, EnvironmentSatisfaction\n"
+                    "- Absenteeism, DistanceFromHome, NumCompaniesWorked\n"
+                    "- YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion\n"
+                    "- **Attrition** (target: 0=Stays, 1=Leaves)")
 
-        if st.button("🚀 Generate HR Dataset", type="primary", use_container_width=True):
-            with st.spinner("Generating employee records..."):
-                df = generate_hr_data(n_emp, seed)
-            st.session_state.df_raw       = df
-            st.session_state.data_ready   = True
-            st.session_state.preprocessed = False
-            st.session_state.trained      = False
-            attr_pct = df["Attrition"].mean() * 100
-            a, b, c, d = st.columns(4)
-            a.metric("Total Employees", f"{len(df):,}")
-            b.metric("Left (Attrition)", f"{df['Attrition'].sum():,}", f"{attr_pct:.1f}%")
-            c.metric("Stayed",  f"{(df['Attrition']==0).sum():,}", f"{100-attr_pct:.1f}%")
-            d.metric("HR Features", f"{df.shape[1]-2}")
-            st.success("✅ HR dataset ready! Proceed to EDA & Employee Trends →")
+        if st.button("🚀 Load Kaggle Dataset", type="primary", use_container_width=True):
+            with st.spinner("Loading dataset..."):
+                try:
+                    df = load_kaggle_dataset()
+                    st.session_state.df_raw       = df
+                    st.session_state.data_ready   = True
+                    st.session_state.preprocessed = False
+                    st.session_state.trained      = False
+                    attr_pct = df["Attrition"].mean() * 100
+                    a, b, c, d = st.columns(4)
+                    a.metric("Total Employees", f"{len(df):,}")
+                    b.metric("Left (Attrition)", f"{df['Attrition'].sum():,}", f"{attr_pct:.1f}%")
+                    c.metric("Stayed",  f"{(df['Attrition']==0).sum():,}", f"{100-attr_pct:.1f}%")
+                    d.metric("HR Features", f"{df.shape[1]-2}")
+                    st.success("✅ Kaggle dataset ready! Proceed to EDA & Employee Trends →")
+                except Exception as e:
+                    st.error(f"Error loading Kaggle dataset: {e}")
 
     with tab2:
         st.info(f"📋 Limits: max **{MAX_UPLOAD_ROWS:,} rows**, **{MAX_UPLOAD_MB} MB**, CSV format only.")
@@ -1318,33 +1265,35 @@ def page_predict():
     with col1:
         st.markdown("**👤 Personal Info**")
         age      = st.slider("Age", 18, 60, 30)
-        gender   = st.selectbox("Gender",       ["Male","Female"])
-        marital  = st.selectbox("Marital Status",["Single","Married","Divorced"])
-        edu      = st.slider("Education Level (1=Below College, 5=Doctor)", 1, 5, 3)
-        edu_fld  = st.selectbox("Education Field",
-                                 ["Life Sciences","Medical","Marketing",
-                                  "Technical Degree","Human Resources","Other"])
+        gender   = st.selectbox("Gender", ["Male", "Female"])
+        marital  = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
+        dist     = st.slider("Distance From Home (miles)", 1, 50, 5)
 
     with col2:
         st.markdown("**🏢 Job Details**")
         dept     = st.selectbox("Department", DEPARTMENTS)
         job_role = st.selectbox("Job Role", JOB_ROLES)
         job_lvl  = st.slider("Job Level (1–5)", 1, 5, 2)
-        overtime = st.selectbox("Over Time", ["No","Yes"])
-        stock    = st.slider("Stock Option Level (0–3)", 0, 3, 0)
-        pct_hike = st.slider("Percent Salary Hike", 11, 25, 14)
+        overtime = st.selectbox("Over Time", ["No", "Yes"])
+        monthly  = st.slider("Monthly Income ($)", 1000, 20000, 5000, 100)
+        hourly   = st.slider("Hourly Rate ($)", 10, 100, 50)
+        proj     = st.slider("Project Count", 1, 10, 3)
+        hours    = st.slider("Avg Hours / Week", 20, 80, 40)
+        absent   = st.slider("Absenteeism (Days)", 0, 30, 2)
 
     with col3:
         st.markdown("**😊 Satisfaction & Tenure**")
-        job_sat  = st.slider("Job Satisfaction (1=Low, 4=High)", 1, 4, 2)
-        env_sat  = st.slider("Environment Satisfaction (1–4)", 1, 4, 2)
-        wlb      = st.slider("Work-Life Balance (1–4)", 1, 4, 2)
-        job_inv  = st.slider("Job Involvement (1–4)", 1, 4, 2)
-        rel_sat  = st.slider("Relationship Satisfaction (1–4)", 1, 4, 3)
-        yrs_co   = st.slider("Years at Company", 0, 40, 2)
-        monthly  = st.slider("Monthly Income ($)", 1000, 20000, 3500, 100)
+        job_sat  = st.slider("Job Satisfaction (1=Low, 4=High)", 1, 4, 3)
+        env_sat  = st.slider("Environment Satisfaction (1-4)", 1, 4, 3)
+        rel_sat  = st.slider("Relationship Satisfaction (1-4)", 1, 4, 3)
+        wlb      = st.slider("Work-Life Balance (1-4)", 1, 4, 3)
+        job_inv  = st.slider("Job Involvement (1-4)", 1, 4, 3)
+        perf     = st.slider("Performance Rating (1-4)", 1, 4, 3)
         num_co   = st.slider("Num Companies Worked", 0, 9, 2)
-        yrs_promo= st.slider("Years Since Last Promotion", 0, 15, 3)
+        yrs_co   = st.slider("Years at Company", 0, 40, 5)
+        yrs_role = st.slider("Years in Current Role", 0, 20, 2)
+        yrs_promo= st.slider("Years Since Last Promotion", 0, 15, 1)
+        training = st.slider("Training Hours Last Year", 0, 100, 15)
 
     if st.button("🔮 Predict Attrition Risk", type="primary", use_container_width=True):
         # Input Validation (Logical Constraints)
@@ -1354,22 +1303,21 @@ def page_predict():
         if yrs_promo > yrs_co:
             st.error(f"⚠️ Invalid input: Years since last promotion ({yrs_promo}) cannot be greater than total years at company ({yrs_co}).")
             return
+        if yrs_role > yrs_co:
+            st.error(f"⚠️ Invalid input: Years in current role ({yrs_role}) cannot be greater than total years at company ({yrs_co}).")
+            return
 
         row = pd.DataFrame([{
-            "Age": age, "Department": dept, "EducationField": edu_fld,
-            "Education": edu, "Gender": gender, "JobRole": job_role,
-            "JobLevel": job_lvl, "MaritalStatus": marital, "OverTime": overtime,
-            "EnvironmentSatisfaction": env_sat, "JobInvolvement": job_inv,
-            "JobSatisfaction": job_sat, "RelationshipSatisfaction": rel_sat,
-            "WorkLifeBalance": wlb, "PerformanceRating": 3,
-            "StockOptionLevel": stock, "MonthlyIncome": monthly,
-            "NumCompaniesWorked": num_co, "PercentSalaryHike": pct_hike,
-            "TotalWorkingYears": yrs_co + num_co * 2,
-            "TrainingTimesLastYear": 2,
-            "YearsAtCompany": yrs_co,
-            "YearsInCurrentRole": min(yrs_co, 5),
-            "YearsSinceLastPromotion": yrs_promo,
-            "YearsWithCurrManager": min(yrs_co, 4),
+            "Age": age, "Gender": gender, "MaritalStatus": marital, "DistanceFromHome": dist,
+            "Department": dept, "JobRole": job_role, "JobLevel": job_lvl, "OverTime": overtime,
+            "MonthlyIncome": monthly, "HourlyRate": hourly, "ProjectCount": proj,
+            "AverageHoursWorkedPerWeek": hours, "Absenteeism": absent,
+            "JobSatisfaction": job_sat, "EnvironmentSatisfaction": env_sat,
+            "RelationshipSatisfaction": rel_sat, "WorkLifeBalance": wlb,
+            "JobInvolvement": job_inv, "PerformanceRating": perf,
+            "NumCompaniesWorked": num_co, "YearsAtCompany": yrs_co,
+            "YearsInCurrentRole": yrs_role, "YearsSinceLastPromotion": yrs_promo,
+            "TrainingTimesLastYear": training
         }])
         try:
             # Encode categoricals first
