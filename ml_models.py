@@ -88,16 +88,25 @@ class SMOTE:
                 y_resampled.append(np.full(n_synthetic, cls))
                 continue
 
-            # Compute pairwise distances for minority samples
+            # Vectorised pairwise distances for minority samples
+            # X_minority: (n_min, d)
+            diff  = X_minority[:, np.newaxis, :] - X_minority[np.newaxis, :, :] # (n_min, n_min, d)
+            dists = np.sqrt((diff ** 2).sum(axis=2))                            # (n_min, n_min)
+            # Find k nearest neighbors (excluding self at index 0)
+            nn_idx = np.argsort(dists, axis=1)[:, 1:k+1]                        # (n_min, k)
+
             synthetic = np.empty((n_synthetic, X.shape[1]))
-            for i in range(n_synthetic):
-                idx    = rng.integers(0, n_min)
-                sample = X_minority[idx]
-                dists  = np.sqrt(((X_minority - sample) ** 2).sum(axis=1))
-                nn_idx = np.argsort(dists)[1:k+1]  # exclude self
-                neighbor = X_minority[rng.choice(nn_idx)]
-                lam = rng.random()
-                synthetic[i] = sample + lam * (neighbor - sample)
+            # Generate random parent indices for all synthetic samples
+            parent_idx = rng.integers(0, n_min, size=n_synthetic)
+            # Pick a random neighbor for each parent
+            neighbor_cols = rng.integers(0, k, size=n_synthetic)
+            neighbor_idx  = nn_idx[parent_idx, neighbor_cols]
+            
+            samples   = X_minority[parent_idx]
+            neighbors = X_minority[neighbor_idx]
+            lams      = rng.random((n_synthetic, 1))
+            
+            synthetic = samples + lams * (neighbors - samples)
 
             X_resampled.append(synthetic)
             y_resampled.append(np.full(n_synthetic, cls))
@@ -353,7 +362,10 @@ class _DecisionTree:
         for f in feats:
             vals = np.unique(X[:, f])
             if len(vals) < 2: continue
+            # Sample at most 20 thresholds to keep it fast
             thresholds = (vals[:-1] + vals[1:]) / 2
+            if len(thresholds) > 20:
+                thresholds = thresholds[np.linspace(0, len(thresholds)-1, 20, dtype=int)]
             for thr in thresholds:
                 left  = X[:, f] <= thr
                 right = ~left
@@ -430,33 +442,6 @@ class RandomForestClassifier:
         return dict(n_estimators=self.n_estimators, class_weight=self.class_weight,
                     random_state=self.random_state, n_jobs=self.n_jobs,
                     max_depth=self.max_depth, min_samples_split=self.min_samples_split)
-
-    def _best_split_fast(self, X, y, w):
-        """Vectorised best-split using random subset of thresholds per feature."""
-        n, d = X.shape
-        n_feat = self.max_features if hasattr(self, 'max_features') else d
-        feats  = self._rng.choice(d, size=min(n_feat, d), replace=False) if hasattr(self, '_rng') else np.arange(d)
-        best_gain, best_feat, best_thr = -1, None, None
-        g_parent = self._gini(y, w)
-        wt = w.sum()
-        for f in feats:
-            vals = np.unique(X[:, f])
-            if len(vals) < 2: continue
-            # Sample at most 20 thresholds to keep it fast
-            thresholds = (vals[:-1] + vals[1:]) / 2
-            if len(thresholds) > 20:
-                thresholds = thresholds[np.linspace(0, len(thresholds)-1, 20, dtype=int)]
-            for thr in thresholds:
-                left  = X[:, f] <= thr
-                right = ~left
-                if left.sum() < 1 or right.sum() < 1: continue
-                g_l = self._gini(y[left],  w[left])
-                g_r = self._gini(y[right], w[right])
-                wl, wr = w[left].sum(), w[right].sum()
-                gain = g_parent - (wl*g_l + wr*g_r) / (wl+wr)
-                if gain > best_gain:
-                    best_gain, best_feat, best_thr = gain, f, thr
-        return best_feat, best_thr
 
     def _sample_weights(self, y):
         if self.class_weight == "balanced":
