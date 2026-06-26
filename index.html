@@ -602,6 +602,22 @@
       .pipe-arr { display: none; }
       .pipeline { gap: 16px; flex-direction: column; }
       .pipe-step { width: 100%; max-width: 300px; }
+      .hero { padding: 60px 16px 30px; }
+      .hero h1 { font-size: clamp(32px, 8vw, 48px); }
+      .btn-row { flex-direction: column; width: 100%; padding: 0 16px; }
+      .btn { width: 100%; justify-content: center; }
+      section { padding: 60px 16px; }
+      .req-grid { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr; }
+      .results-box { padding: 20px 12px; }
+      th, td { padding: 12px 10px; font-size: 14px; }
+      .driver { padding: 16px; }
+      .insight { padding: 16px; font-size: 15px; }
+    }
+    @media(max-width:480px) {
+      .stats-bar { flex-direction: column; gap: 24px; padding: 24px; }
+      .stat { width: 100%; }
+      .stat .num { font-size: 32px; }
     }
   </style>
 </head>
@@ -610,12 +626,13 @@
 
   <!-- HERO -->
   <div class="hero">
-    <div class="badge">🚀 RISE Internship 2026 · Project 4</div>
+    <div class="badge">🚀 RISE Internship 2026</div>
     <h1>Intelligent Employee<br>Attrition Prediction</h1>
     <p>An enterprise-grade, cloud-native machine learning dashboard that identifies at-risk employees and surfaces actionable HR retention strategies.</p>
     <div class="btn-row">
       <a href="https://employee-attrition-ml-hswubfms4tdnfxhz7wbmn9.streamlit.app/" class="btn btn-primary" target="_blank">View Live Dashboard</a>
       <a href="https://github.com/onebotyt/employee-attrition-ml.git" class="btn btn-outline" target="_blank">View Source on GitHub</a>
+      <a href="ml_model.html" class="btn btn-outline">📊 ML Deep Dive — How Every Line Works</a>
     </div>
     
     <div class="stats-bar">
