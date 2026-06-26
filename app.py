@@ -361,6 +361,7 @@ def load_kaggle_dataset(filepath: str = "employee_attrition_dataset.csv") -> pd.
         "Job_Involvement": "JobInvolvement",
         "Distance_From_Home": "DistanceFromHome",
         "Number_of_Companies_Worked": "NumCompaniesWorked", # map to old
+        "Overtime": "OverTime",          # fix case mismatch with EDA/Predict pages
     }
     df = df.rename(columns=col_mapping)
     
