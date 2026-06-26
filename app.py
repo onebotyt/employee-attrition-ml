@@ -985,7 +985,7 @@ def page_train():
         lr_c   = st.slider("LR — C", 0.01, 10.0, 1.0, disabled=not use_lr)
     with col2:
         use_rf = st.checkbox("Random Forest", True)
-        rf_n   = st.slider("RF — Trees", 50, 300, 200, 50, disabled=not use_rf)
+        rf_n   = st.slider("RF — Trees", 20, 200, 80, 20, disabled=not use_rf)
     with col3:
         use_svm = st.checkbox("SVM (RBF)", True)
         svm_c   = st.slider("SVM — C", 0.1, 10.0, 1.0, disabled=not use_svm)

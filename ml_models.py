@@ -260,7 +260,7 @@ def cross_val_score(model, X, y, cv, scoring="recall"):
 
 class LogisticRegression:
     def __init__(self, C=1.0, class_weight=None, random_state=42,
-                 max_iter=500, lr=0.1):
+                 max_iter=200, lr=0.1):
         self.C            = C
         self.class_weight = class_weight
         self.random_state = random_state
@@ -415,8 +415,8 @@ class _DecisionTree:
 # ─────────────────────────────────────────────────────────
 
 class RandomForestClassifier:
-    def __init__(self, n_estimators=100, class_weight=None, random_state=42,
-                 n_jobs=-1, max_depth=10, min_samples_split=4):
+    def __init__(self, n_estimators=80, class_weight=None, random_state=42,
+                 n_jobs=-1, max_depth=8, min_samples_split=5):
         self.n_estimators      = n_estimators
         self.class_weight      = class_weight
         self.random_state      = random_state
@@ -430,6 +430,33 @@ class RandomForestClassifier:
         return dict(n_estimators=self.n_estimators, class_weight=self.class_weight,
                     random_state=self.random_state, n_jobs=self.n_jobs,
                     max_depth=self.max_depth, min_samples_split=self.min_samples_split)
+
+    def _best_split_fast(self, X, y, w):
+        """Vectorised best-split using random subset of thresholds per feature."""
+        n, d = X.shape
+        n_feat = self.max_features if hasattr(self, 'max_features') else d
+        feats  = self._rng.choice(d, size=min(n_feat, d), replace=False) if hasattr(self, '_rng') else np.arange(d)
+        best_gain, best_feat, best_thr = -1, None, None
+        g_parent = self._gini(y, w)
+        wt = w.sum()
+        for f in feats:
+            vals = np.unique(X[:, f])
+            if len(vals) < 2: continue
+            # Sample at most 20 thresholds to keep it fast
+            thresholds = (vals[:-1] + vals[1:]) / 2
+            if len(thresholds) > 20:
+                thresholds = thresholds[np.linspace(0, len(thresholds)-1, 20, dtype=int)]
+            for thr in thresholds:
+                left  = X[:, f] <= thr
+                right = ~left
+                if left.sum() < 1 or right.sum() < 1: continue
+                g_l = self._gini(y[left],  w[left])
+                g_r = self._gini(y[right], w[right])
+                wl, wr = w[left].sum(), w[right].sum()
+                gain = g_parent - (wl*g_l + wr*g_r) / (wl+wr)
+                if gain > best_gain:
+                    best_gain, best_feat, best_thr = gain, f, thr
+        return best_feat, best_thr
 
     def _sample_weights(self, y):
         if self.class_weight == "balanced":
@@ -534,23 +561,22 @@ class KNeighborsClassifier:
 
     def predict_proba(self, X):
         X = np.asarray(X, dtype=float)
-        probs = []
-        for x in X:
-            dists = self._distances(x)
-            nn    = np.argsort(dists)[:self.n_neighbors]
-            nn_y  = self.y_train_[nn]
-            nn_d  = dists[nn]
+        # Vectorised: compute all distances at once as matrix op
+        # Shape: (n_test, n_train)
+        diff  = X[:, np.newaxis, :] - self.X_train_[np.newaxis, :, :]  # broadcast
+        dists = np.sqrt((diff ** 2).sum(axis=2))  # (n_test, n_train)
+        nn_idx = np.argsort(dists, axis=1)[:, :self.n_neighbors]       # (n_test, k)
 
-            # FIX: distance-weighted voting (closer neighbours matter more)
+        probs = []
+        for i, nn in enumerate(nn_idx):
+            nn_y = self.y_train_[nn]
+            nn_d = dists[i, nn]
             if self.weights == "distance":
                 w = 1.0 / (nn_d + 1e-8)
             else:
                 w = np.ones(len(nn))
-
-            # FIX: multiply by class weight for imbalanced handling
             cw = np.array([self._cw.get(yi, 1.0) for yi in nn_y])
             w  = w * cw
-
             p1 = np.sum(w[nn_y == 1]) / (w.sum() + 1e-8)
             probs.append([1 - p1, p1])
         return np.array(probs)
@@ -605,23 +631,24 @@ class SVC:
         sw   = self._sample_weights(y)
         self.w_ = rng.normal(0, 0.01, d)
         self.b_ = 0.0
-        lr = 0.01
         lam = 1.0 / (self.C * n)
 
-        for epoch in range(200):
-            idx = rng.permutation(n)
-            for i in idx:
-                xi, yi, wi = X[i], y_pm[i], sw[i]
-                margin = yi * (xi @ self.w_ + self.b_)
-                if margin < 1:
-                    self.w_ = self.w_ - lr * (2*lam*self.w_ - wi*yi*xi)
-                    self.b_ = self.b_ + lr * wi * yi
-                else:
-                    self.w_ = self.w_ - lr * (2*lam*self.w_)
+        # Vectorised batch gradient descent — NO per-sample Python loop
+        # Much faster: each epoch is a single matrix multiply
+        for epoch in range(100):
+            lr = 0.01 / (1.0 + 0.05 * epoch)   # decaying lr
+            margins = y_pm * (X @ self.w_ + self.b_)  # (n,)
+            # hinge mask: samples violating margin
+            mask = (margins < 1).astype(float) * sw    # (n,)
+            # gradient of regularisation + hinge loss
+            grad_w = 2 * lam * self.w_ - (mask * y_pm) @ X / n
+            grad_b = -(mask * y_pm).sum() / n
+            self.w_ -= lr * grad_w
+            self.b_ -= lr * grad_b
 
         # Probability calibration via logistic regression on decision scores
         scores = X @ self.w_ + self.b_
-        self._lr_model = LogisticRegression(C=1.0, max_iter=200, lr=0.1)
+        self._lr_model = LogisticRegression(C=1.0, max_iter=100, lr=0.1)
         self._lr_model.fit(scores.reshape(-1, 1), y)
         return self
 
