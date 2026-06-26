@@ -993,7 +993,7 @@ def page_train():
         use_knn = st.checkbox("KNN", True)
         knn_k   = st.slider("KNN — k", 1, 21, 5, 2, disabled=not use_knn)
 
-    cv_k = st.slider("Cross-validation folds", 2, 10, 5)
+    cv_k = st.slider("Cross-validation folds", 2, 10, 3)
 
     st.markdown("""<div class="insight-box">
     💡 <b>Why Recall is the primary metric:</b> Missing an employee who is about to leave
@@ -1008,7 +1008,7 @@ def page_train():
     if st.button("🚀 Train Models", type="primary", use_container_width=True):
         mdls = {}
         if use_lr:  mdls["Logistic Regression"] = LogisticRegression(
-                        C=lr_c, class_weight="balanced", random_state=42, max_iter=500)
+                        C=lr_c, class_weight="balanced", random_state=42, max_iter=150)
         if use_rf:  mdls["Random Forest"]       = RandomForestClassifier(
                         n_estimators=rf_n, class_weight="balanced", random_state=42, n_jobs=-1)
         if use_svm: mdls["SVM (Linear)"]         = SVC(
