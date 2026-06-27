@@ -1262,20 +1262,31 @@ def page_predict():
     feat_cols  = st.session_state.feature_cols
     st.markdown(f"Using: **{st.session_state.best_name}** (best Recall)")
 
+    # ── Dynamic options from trained encoders (fixes KeyError for any dataset) ──
+    def _opts(col, fallback):
+        enc = encoders.get(col)
+        return sorted(enc.classes_.tolist()) if enc is not None else fallback
+
+    genders   = _opts("Gender",        ["Male", "Female"])
+    maritals  = _opts("MaritalStatus", ["Single", "Married", "Divorced"])
+    depts     = _opts("Department",    ["Human Resources", "Research & Development", "Sales"])
+    roles     = _opts("JobRole",       ["Manager", "Analyst", "Executive", "Assistant"])
+    overtimes = _opts("OverTime",      ["No", "Yes"])
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("**👤 Personal Info**")
         age      = st.slider("Age", 18, 60, 30)
-        gender   = st.selectbox("Gender", ["Male", "Female"])
-        marital  = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
+        gender   = st.selectbox("Gender", genders)
+        marital  = st.selectbox("Marital Status", maritals)
         dist     = st.slider("Distance From Home (miles)", 1, 50, 5)
 
     with col2:
         st.markdown("**🏢 Job Details**")
-        dept     = st.selectbox("Department", DEPARTMENTS)
-        job_role = st.selectbox("Job Role", JOB_ROLES)
+        dept     = st.selectbox("Department", depts)
+        job_role = st.selectbox("Job Role", roles)
         job_lvl  = st.slider("Job Level (1–5)", 1, 5, 2)
-        overtime = st.selectbox("Over Time", ["No", "Yes"])
+        overtime = st.selectbox("Over Time", overtimes)
         monthly  = st.slider("Monthly Income ($)", 1000, 20000, 5000, 100)
         hourly   = st.slider("Hourly Rate ($)", 10, 100, 50)
         proj     = st.slider("Project Count", 1, 10, 3)
