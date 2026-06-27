@@ -1430,7 +1430,8 @@ def page_atrisk():
     feat_cols = st.session_state.feature_cols
 
     st.markdown(f"Model: **{best_name}** | Scoring all **{len(df):,}** employees")
-    threshold = st.slider("At-risk threshold (attrition probability ≥)", 0.35, 0.85, 0.55, 0.05)
+    threshold = st.slider("At-risk threshold (attrition probability ≥)", 0.35, 0.85, 0.40, 0.05)
+
 
     if st.button("🔍 Identify At-Risk Employees", type="primary"):
         with st.spinner("Scoring all employees..."):

@@ -633,8 +633,11 @@ class SVC:
 
         # Probability calibration via logistic regression on decision scores
         scores = X @ self.w_ + self.b_
+        self._score_mean = scores.mean()
+        self._score_std  = scores.std() + 1e-8
+        scores_norm = (scores - self._score_mean) / self._score_std
         self._lr_model = LogisticRegression(C=1.0, max_iter=100, lr=0.1)
-        self._lr_model.fit(scores.reshape(-1, 1), y)
+        self._lr_model.fit(scores_norm.reshape(-1, 1), y)
         return self
 
     def decision_function(self, X):
@@ -643,8 +646,9 @@ class SVC:
 
     def predict_proba(self, X):
         X = np.asarray(X, dtype=float)
-        scores = self.decision_function(X).reshape(-1, 1)
-        return self._lr_model.predict_proba(scores)
+        scores = self.decision_function(X)
+        scores_norm = (scores - self._score_mean) / self._score_std
+        return self._lr_model.predict_proba(scores_norm.reshape(-1, 1))
 
     def predict(self, X):
         # FIX: use calibrated probability threshold 0.35 (not raw decision score >= 0)
