@@ -1023,28 +1023,37 @@ def page_train():
         results, rows = {}, []
         skf = StratifiedKFold(n_splits=cv_k, shuffle=True, random_state=42)
         bar = st.progress(0, text="Training...")
+        n_models = len(mdls)
+        name = ""  # track current model for error reporting
 
-        for i, (name, model) in enumerate(mdls.items()):
-            bar.progress(i/len(mdls), text=f"Training {name}...")
-            cv = cross_val_score(model, X_train, y_train, cv=skf, scoring="recall")
-            model.fit(X_train, y_train)
-            y_pred  = model.predict(X_test)
-            y_proba = model.predict_proba(X_test)[:,1] if hasattr(model,"predict_proba") else None
-            results[name] = {"model":model,"cv_recall":cv.mean(),"cv_std":cv.std(),
-                             "cv_scores":cv,  # full per-fold scores for CV tab
-                             "accuracy":accuracy_score(y_test,y_pred),
-                             "recall":recall_score(y_test,y_pred),
-                             "precision":precision_score(y_test,y_pred),
-                             "f1":f1_score(y_test,y_pred),
-                             "roc_auc":roc_auc_score(y_test,y_proba) if y_proba is not None else None,
-                             "y_pred":y_pred,"y_proba":y_proba}
-            rows.append({"Model":name,
-                         "CV Recall":f"{cv.mean()*100:.2f}%","CV Std":f"±{cv.std()*100:.2f}%",
-                         "Accuracy":f"{results[name]['accuracy']*100:.2f}%",
-                         "Recall":f"{results[name]['recall']*100:.2f}%",
-                         "Precision":f"{results[name]['precision']*100:.2f}%",
-                         "F1":f"{results[name]['f1']*100:.2f}%",
-                         "ROC-AUC":f"{results[name]['roc_auc']*100:.2f}%" if results[name]['roc_auc'] else "N/A"})
+        try:
+            for i, (name, model) in enumerate(mdls.items()):
+                bar.progress(i / n_models, text=f"⏳ Training {name} ({i+1}/{n_models})...")
+                cv = cross_val_score(model, X_train, y_train, cv=skf, scoring="recall")
+                model.fit(X_train, y_train)
+                y_pred  = model.predict(X_test)
+                y_proba = model.predict_proba(X_test)[:,1] if hasattr(model,"predict_proba") else None
+                results[name] = {"model":model,"cv_recall":cv.mean(),"cv_std":cv.std(),
+                                 "cv_scores":cv,
+                                 "accuracy":accuracy_score(y_test,y_pred),
+                                 "recall":recall_score(y_test,y_pred),
+                                 "precision":precision_score(y_test,y_pred),
+                                 "f1":f1_score(y_test,y_pred),
+                                 "roc_auc":roc_auc_score(y_test,y_proba) if y_proba is not None else None,
+                                 "y_pred":y_pred,"y_proba":y_proba}
+                rows.append({"Model":name,
+                             "CV Recall":f"{cv.mean()*100:.2f}%","CV Std":f"{cv.std()*100:.2f}%",
+                             "Accuracy":f"{results[name]['accuracy']*100:.2f}%",
+                             "Recall":f"{results[name]['recall']*100:.2f}%",
+                             "Precision":f"{results[name]['precision']*100:.2f}%",
+                             "F1":f"{results[name]['f1']*100:.2f}%",
+                             "ROC-AUC":f"{results[name]['roc_auc']*100:.2f}%" if results[name]['roc_auc'] else "N/A"})
+                bar.progress((i + 1) / n_models, text=f"✅ {name} complete!")
+        except Exception as exc:
+            bar.empty()
+            st.error(f"❌ Training crashed on **{name}**: `{type(exc).__name__}: {exc}`")
+            st.info("💡 Try re-running **Preprocess** step first, then Train again.")
+            st.stop()
 
         bar.progress(1.0, text="Done!")
         best_name = max(results, key=lambda k: results[k]["recall"])
@@ -1067,6 +1076,8 @@ def page_train():
                    f"({results[best_name]['recall']*100:.1f}%)")
         st.dataframe(pd.DataFrame(rows).set_index("Model"), use_container_width=True)
         st.balloons()
+
+
 
 
 # ════════════════════════════════════════════════════════════════════════════
